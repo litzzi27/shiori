@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="css/style.css" rel="stylesheet" />
+    <title>Shiori</title>
+  </head>
+
+  <body>
+    <header>
+      <div class="wrap">
+        <div class="topbar">
+          <div class="brand">
+            <div class="logo" aria-hidden="true"></div>
+            <h1>Shiori</h1>
+          </div>
+
+          <div class="actions">
+            <div class="search">
+              <span class="icon" aria-hidden="true">⌕</span>
+              <input type="search" placeholder="Search bookshelves…" />
+            </div>
+            <button class="btn" type="button">Sort</button>
+            <button class="btn primary" type="button" id="new-shelf-btn">
+              + New Bookshelf
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="pagehead">
+      <div>
+        <h2>My Bookshelves</h2>
+        <div class="meta">0 shelves</div>
+      </div>
+    </div>
+
+    <main>
+      <section class="grid" aria-label="Bookshelf gallery"></section>
+    </main>
+
+    <!-- New Shelf Modal -->
+    <div class="modal" id="shelf-modal" aria-hidden="true">
+      <div class="modal__backdrop" data-close="true"></div>
+      <div
+        class="modal__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shelf-modal-title"
+      >
+        <div class="modal__header">
+          <h3 class="modal__title" id="shelf-modal-title">New bookshelf</h3>
+          <button class="icon-btn" type="button" aria-label="Close" data-close="true">
+            ✕
+          </button>
+        </div>
+
+        <form id="shelf-form" class="modal__form" autocomplete="off">
+          <label class="field">
+            <span class="field__label">Name</span>
+            <input
+              id="shelf-name"
+              name="name"
+              type="text"
+              placeholder="e.g., Cozy Autumn Reads"
+              required
+            />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Background color</span>
+            <input id="shelf-color" name="color" type="color" value="#f6c6d6" />
+          </label>
+
+          <div class="field-row">
+            <label class="field">
+              <span class="field__label">Cover image URL (optional)</span>
+              <input
+                id="shelf-cover-url"
+                name="coverUrl"
+                type="url"
+                placeholder="https://example.com/cover.jpg"
+              />
+            </label>
+
+            <label class="field">
+              <span class="field__label">Or upload an image</span>
+              <input
+                id="shelf-cover-file"
+                name="coverFile"
+                type="file"
+                accept="image/*"
+              />
+            </label>
+          </div>
+
+          <div class="modal__actions">
+            <button class="btn" type="button" data-close="true">Cancel</button>
+            <button class="btn primary" type="submit">Create</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="js/script.js"></script>
+  </body>
+</html>

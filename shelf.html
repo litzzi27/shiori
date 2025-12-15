@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="css/shelf.css" rel="stylesheet" />
+    <title>Shiori</title>
+  </head>
+
+<body>
+  <header>
+    <div class="wrap">
+      <div class="topbar">
+        <div class="brand">
+          <a class="back" href="index.html" aria-label="Back to shelves">←</a>
+          <h1 id="header-shelf-name">Shelf</h1>
+        </div>
+
+        <div class="actions">
+          <button class="btn" type="button" id="sort-btn">Sort</button>
+          <button class="btn primary" type="button" id="add-book-btn">+ Add Book</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="pagehead">
+    <div>
+      <h2 id="shelf-title">Shelf Name</h2>
+      <div class="meta" id="shelf-meta">0 books</div>
+    </div>
+  </div>
+
+  <main>
+    <section class="grid books" aria-label="Books in shelf"></section>
+  </main>
+
+  <!-- Add Book Modal -->
+  <div class="modal" id="book-modal" aria-hidden="true">
+    <div class="modal__backdrop" data-close="true"></div>
+    <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="book-modal-title">
+      <div class="modal__header">
+        <h3 class="modal__title" id="book-modal-title">Add a book</h3>
+        <button class="icon-btn" type="button" aria-label="Close" data-close="true">✕</button>
+      </div>
+
+      <form id="book-form" class="modal__form" autocomplete="off">
+        <label class="field">
+          <span class="field__label">Title</span>
+          <input id="book-title" name="title" type="text" placeholder="e.g., 多聞くん今どっち!?" required />
+        </label>
+
+        <label class="field">
+          <span class="field__label">Author (optional)</span>
+          <input id="book-author" name="author" type="text" placeholder="e.g., 師走ゆき" />
+        </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span class="field__label">Volume # (optional)</span>
+            <input id="book-volume" name="volume" type="number" min="1" step="1" placeholder="1" />
+          </label>
+
+          <label class="field">
+            <span class="field__label">Cover URL (optional)</span>
+            <input id="book-cover" name="cover" type="url" placeholder="https://..." />
+          </label>
+        </div>
+
+        <div class="modal__actions">
+          <button class="btn" type="button" data-close="true">Cancel</button>
+          <button class="btn primary" type="submit">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/shelf.js"></script>
+</body>
+</html>

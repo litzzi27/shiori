@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="css/editor.css" rel="stylesheet" />
+    <title>Shiori — Editor</title>
+  </head>
+
+  <body>
+    <!-- Top toolbar -->
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <button class="pill" id="back-btn" type="button">← Back</button>
+        <button
+          class="pill icon"
+          id="toc-btn"
+          type="button"
+          aria-label="Table of contents"
+        >
+          ☰
+        </button>
+        <div class="ch-wrap">
+          <span class="ch-label">Ch.</span>
+          <input
+            id="chapter-input"
+            type="number"
+            min="1"
+            step="1"
+            placeholder="—"
+            aria-label="Chapter number"
+          />
+        </div>
+        <div class="page-title-wrap">
+          <input
+            id="page-title-input"
+            type="text"
+            placeholder="Page title (optional)"
+            aria-label="Page title"
+          />
+        </div>
+        <button
+          class="pill dropdown"
+          id="page-pill"
+          type="button"
+          aria-haspopup="true"
+          aria-expanded="false"
+        >
+          Pg. 1
+        </button>
+      </div>
+
+      <div class="toolbar-right">
+        <div class="pill muted" id="save-status">Saved</div>
+        <button class="pill" type="button" id="shortcuts-btn">
+          ✨ Shortcuts
+        </button>
+        <button class="pill" type="button" id="new-page-btn">
+          ＋ New Page
+        </button>
+      </div>
+    </div>
+
+    <!-- Slide-out TOC (pages only for now) -->
+    <aside class="toc" id="toc" aria-hidden="true">
+      <div class="toc-header">
+        <div class="toc-title">Contents</div>
+        <button
+          class="pill icon"
+          id="toc-close"
+          type="button"
+          aria-label="Close contents"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="toc-search">
+        <input
+          id="toc-search"
+          type="text"
+          placeholder="Search pages…"
+          aria-label="Search contents"
+        />
+      </div>
+
+      <div class="toc-body" id="toc-body">
+        <!-- JS will render pages here -->
+      </div>
+    </aside>
+    <div class="toc-backdrop" id="toc-backdrop" aria-hidden="true"></div>
+
+    <!-- Page dropdown -->
+    <div class="popover" id="page-popover" aria-hidden="true">
+      <div class="popover-title">Go to page</div>
+      <div class="popover-list" id="page-list"></div>
+    </div>
+
+    <!-- Shortcuts popover -->
+    <div class="popover" id="shortcuts-popover" aria-hidden="true">
+      <div class="popover-title">Shortcuts ✨</div>
+      <div class="popover-list">
+        <div class="shortcut-row"><kbd>⌘ 1</kbd><span>Narration</span></div>
+        <div class="shortcut-row"><kbd>⌘ 2</kbd><span>Dialogue</span></div>
+        <div class="shortcut-row"><kbd>⌘ 3</kbd><span>SFX</span></div>
+        <div class="shortcut-row"><kbd>⌘ 4</kbd><span>Thought</span></div>
+        <div class="shortcut-row"><kbd>Esc</kbd><span>Close</span></div>
+        <div class="shortcut-hint">
+          (Format the selected block(s) — otherwise the block your cursor is in.)
+        </div>
+      </div>
+    </div>
+
+    <!-- Page -->
+    <main class="page" id="page-layout">
+      <div class="page-header">
+        <div class="page-title" id="book-title">Untitled</div>
+        <div class="page-meta" id="book-meta">— · Pg. 1</div>
+      </div>
+
+      <div
+        id="editor"
+        class="editor"
+        contenteditable="true"
+        spellcheck="false"
+        data-placeholder="Start writing…"
+      ></div>
+    </main>
+    <!-- Toasts -->
+    <div
+      class="toast-host"
+      id="toast-host"
+      aria-live="polite"
+      aria-atomic="true"
+    ></div>
+
+    <button class="annotate-btn" id="annotate-btn" type="button">Annotate</button>
+
+    <aside class="annotation-panel" id="annotation-panel" aria-hidden="true">
+      <div class="annotation-panel__header">
+        <div>
+          <div class="annotation-panel__title">Annotation</div>
+          <div class="annotation-panel__subtitle">
+            Highlight text in the script, then click Annotate.
+          </div>
+        </div>
+        <button class="pill ghost" type="button" id="annotation-close-btn">✕</button>
+      </div>
+
+      <div class="annotation-panel__selection">
+        <div class="annotation-label">Selected text</div>
+        <div class="annotation-selected" id="annotation-selected-text">—</div>
+      </div>
+
+      <form class="annotation-form" id="annotation-form" autocomplete="off">
+        <label class="annotation-field">
+          <span class="annotation-label">Reading</span>
+          <input type="text" id="annotation-reading" placeholder="e.g., たもん" />
+        </label>
+
+        <div class="annotation-field">
+          <span class="annotation-label">Reading type</span>
+          <div class="annotation-toggle">
+            <label>
+              <input type="radio" name="annotation-reading-type" value="kun" checked />
+              <span>Kun</span>
+            </label>
+            <label>
+              <input type="radio" name="annotation-reading-type" value="on" />
+              <span>On</span>
+            </label>
+          </div>
+        </div>
+
+        <label class="annotation-field">
+          <span class="annotation-label">Meaning</span>
+          <textarea id="annotation-meaning" rows="2" placeholder="Translation or definition"></textarea>
+        </label>
+
+        <label class="annotation-field">
+          <span class="annotation-label">Notes</span>
+          <textarea id="annotation-notes" rows="3" placeholder="Grammar, source, mnemonics…"></textarea>
+        </label>
+
+        <div class="annotation-actions">
+          <button class="pill ghost" type="button" id="annotation-cancel-btn">Cancel</button>
+          <button class="pill primary" type="submit">Save annotation</button>
+        </div>
+      </form>
+
+      <div class="annotation-list" id="annotation-list"></div>
+    </aside>
+
+    <!-- Confirm modal -->
+    <div class="modal" id="confirm-modal" aria-hidden="true">
+      <div class="modal__backdrop" data-close-confirm="true"></div>
+      <div
+        class="modal__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-modal-title"
+      >
+        <div class="modal__header">
+          <h3 class="modal__title" id="confirm-modal-title">Delete chapter?</h3>
+          <button
+            class="modal__close pill"
+            type="button"
+            aria-label="Close"
+            data-close-confirm="true"
+          >
+            ✕
+          </button>
+        </div>
+        <div class="modal__body" id="confirm-modal-text">
+          This will remove every page inside that chapter.
+        </div>
+        <div class="modal__actions">
+          <button class="pill ghost" type="button" data-close-confirm="true">
+            Cancel
+          </button>
+          <button class="pill danger" type="button" id="confirm-modal-confirm">
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/editor.js"></script>
+  </body>
+</html>
