@@ -46,8 +46,9 @@ let openBookMenu = null;
 let editingBookId = null;
 
 // If the user opened shelf.html without an id, go back home
+// NOTE: shelf.html lives in /pages, but index.html stays at the root.
 if (!shelfId || !shelf) {
-  window.location.href = "index.html";
+  window.location.href = "/index.html";
 }
 
 function closeBookMenu() {

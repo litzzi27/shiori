@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link href="css/editor.css" rel="stylesheet" />
-    <title>Shiori — Editor</title>
+    <link href="../css/editor.css" rel="stylesheet" />
+    <link rel="icon" href="/icons/shiori.ico" sizes="any" />
+    <title>Shiori</title>
   </head>
 
   <body>
@@ -54,6 +55,26 @@
         <div class="pill muted" id="save-status">Saved</div>
         <button class="pill" type="button" id="shortcuts-btn">
           ✨ Shortcuts
+        </button>
+        <button
+          class="pill"
+          type="button"
+          id="dual-view-btn"
+          aria-pressed="false"
+        >
+          ↔ Dual View
+        </button>
+        <button
+          class="pill"
+          type="button"
+          id="view-menu-btn"
+          aria-haspopup="true"
+          aria-expanded="false"
+        >
+          👁 View
+        </button>
+        <button class="pill" type="button" id="detect-annotations-btn">
+          🔍 Detect
         </button>
         <button class="pill" type="button" id="new-page-btn">
           ＋ New Page
@@ -111,21 +132,64 @@
       </div>
     </div>
 
-    <!-- Page -->
-    <main class="page" id="page-layout">
-      <div class="page-header">
-        <div class="page-title" id="book-title">Untitled</div>
-        <div class="page-meta" id="book-meta">— · Pg. 1</div>
-      </div>
+    <!-- View options -->
+    <div class="popover view-popover" id="view-popover" aria-hidden="true">
+      <div class="popover-title">View options</div>
+      <label class="view-toggle">
+        <div class="view-toggle__text">
+          <span class="view-toggle__label">Annotations</span>
+          <span class="view-toggle__hint">Show highlight colors and tooltips.</span>
+        </div>
+        <div class="view-switch">
+          <input type="checkbox" id="toggle-annotations" checked />
+          <span class="view-switch__slider" aria-hidden="true"></span>
+        </div>
+      </label>
+      <label class="view-toggle">
+        <div class="view-toggle__text">
+          <span class="view-toggle__label">Furigana</span>
+          <span class="view-toggle__hint">Display the pronunciation above Kanji.</span>
+        </div>
+        <div class="view-switch">
+          <input type="checkbox" id="toggle-furigana" checked />
+          <span class="view-switch__slider" aria-hidden="true"></span>
+        </div>
+      </label>
+    </div>
 
-      <div
-        id="editor"
-        class="editor"
-        contenteditable="true"
-        spellcheck="false"
-        data-placeholder="Start writing…"
-      ></div>
-    </main>
+    <!-- Page + Memo workspace -->
+    <div class="workspace" id="workspace">
+      <main class="page" id="page-layout">
+        <div class="page-header">
+          <div class="page-title" id="book-title">Untitled</div>
+          <div class="page-meta" id="book-meta">— · Pg. 1</div>
+        </div>
+
+        <div
+          id="editor"
+          class="editor"
+          contenteditable="true"
+          spellcheck="false"
+          data-placeholder="Start writing…"
+        ></div>
+      </main>
+
+      <aside class="memo-pane" id="memo-pane" aria-label="Brain dump memo">
+        <div class="memo-pane__header">
+          <div>
+            <div class="memo-pane__title">Memo</div>
+            <div class="memo-pane__subtitle">Jot quick thoughts or snippets</div>
+          </div>
+        </div>
+        <div
+          id="memo-editor"
+          class="memo-editor"
+          contenteditable="true"
+          spellcheck="false"
+          data-placeholder="Write anything…"
+        ></div>
+      </aside>
+    </div>
     <!-- Toasts -->
     <div
       class="toast-host"
@@ -225,6 +289,6 @@
       </div>
     </div>
 
-    <script src="js/editor.js"></script>
+    <script src="../js/editor.js"></script>
   </body>
 </html>

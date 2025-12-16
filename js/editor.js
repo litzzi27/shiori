@@ -1,4 +1,9 @@
 const STORAGE_KEY = "shiori_shelves";
+const VIEW_PREFS_KEY = "shiori_editor_viewPrefs";
+const defaultViewPrefs = {
+  annotations: true,
+  furigana: true,
+};
 
 // ---- Helpers ----
 function loadShelves() {
@@ -22,6 +27,36 @@ function makeId() {
 function chapterKey(ch) {
   return ch === null ? "none" : String(ch);
 }
+
+function loadViewPrefs() {
+  try {
+    const raw = localStorage.getItem(VIEW_PREFS_KEY);
+    if (!raw) return { ...defaultViewPrefs };
+    const parsed = JSON.parse(raw);
+    return {
+      annotations:
+        typeof parsed.annotations === "boolean"
+          ? parsed.annotations
+          : defaultViewPrefs.annotations,
+      furigana:
+        typeof parsed.furigana === "boolean"
+          ? parsed.furigana
+          : defaultViewPrefs.furigana,
+    };
+  } catch {
+    return { ...defaultViewPrefs };
+  }
+}
+
+function saveViewPrefs(prefs) {
+  try {
+    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    /* ignore */
+  }
+}
+
+let viewPrefs = loadViewPrefs();
 
 // ---- Data model helpers ----
 // Each page: { id, ch (number|null), n (page# within chapter), title, content, updatedAt }
@@ -132,6 +167,9 @@ function ensurePagesModel(bookObj) {
   if (typeof bookObj.glossary !== "object" || bookObj.glossary === null) {
     bookObj.glossary = {};
   }
+
+  if (typeof bookObj.memoContent !== "string") bookObj.memoContent = "";
+  if (typeof bookObj.memoVisible !== "boolean") bookObj.memoVisible = false;
 }
 
 // ---- Grab ids from URL ----
@@ -159,11 +197,18 @@ const pageList = document.getElementById("page-list");
 
 const shortcutsBtn = document.getElementById("shortcuts-btn");
 const shortcutsPopover = document.getElementById("shortcuts-popover");
+const viewMenuBtn = document.getElementById("view-menu-btn");
+const viewPopover = document.getElementById("view-popover");
+const annotationsToggleInput = document.getElementById("toggle-annotations");
+const furiganaToggleInput = document.getElementById("toggle-furigana");
+const detectAnnotationsBtn = document.getElementById("detect-annotations-btn");
 
 const newPageBtn = document.getElementById("new-page-btn");
 
 const pageTitleInput = document.getElementById("page-title-input");
 const chapterInput = document.getElementById("chapter-input");
+const dualViewBtn = document.getElementById("dual-view-btn");
+const memoEditor = document.getElementById("memo-editor");
 
 const confirmModal = document.getElementById("confirm-modal");
 const confirmModalTitle = document.getElementById("confirm-modal-title");
@@ -185,6 +230,38 @@ const annotationTypeInputs = document.querySelectorAll(
   'input[name="annotation-reading-type"]'
 );
 const annotationListEl = document.getElementById("annotation-list");
+
+function applyViewPrefs() {
+  const body = document.body;
+  const showAnnotations =
+    typeof viewPrefs.annotations === "boolean"
+      ? viewPrefs.annotations
+      : defaultViewPrefs.annotations;
+  const showFurigana =
+    typeof viewPrefs.furigana === "boolean"
+      ? viewPrefs.furigana
+      : defaultViewPrefs.furigana;
+
+  if (body) {
+    body.classList.toggle("annotations-hidden", !showAnnotations);
+    body.classList.toggle("furigana-hidden", !showFurigana);
+  }
+
+  if (annotationsToggleInput)
+    annotationsToggleInput.checked = showAnnotations;
+  if (furiganaToggleInput) furiganaToggleInput.checked = showFurigana;
+}
+
+function updateViewPref(key, value) {
+  viewPrefs = {
+    ...viewPrefs,
+    [key]: Boolean(value),
+  };
+  saveViewPrefs(viewPrefs);
+  applyViewPrefs();
+}
+
+applyViewPrefs();
 
 // toasts
 const toastHost = document.getElementById("toast-host");
@@ -395,6 +472,7 @@ function wrapAnnotationRange(entryInner, start, end, annotationData) {
     furiEl = document.createElement("span");
     furiEl.className = "annotation-furigana";
     furiEl.setAttribute("aria-hidden", "true");
+    furiEl.setAttribute("contenteditable", "false");
     furiEl.textContent = reading;
 
     // Minimal inline layout so it behaves even before CSS tweaks.
@@ -727,6 +805,22 @@ function upsertGlossaryFromAnnotation(bookObj, annotation) {
   };
 }
 
+function removeGlossaryWord(bookObj, text) {
+  if (!bookObj) return;
+  const key = glossaryKeyFromText(text);
+  if (!key) return;
+  const glossary = ensureGlossary(bookObj);
+  if (glossary[key]) {
+    delete glossary[key];
+  }
+  (bookObj.pages || []).forEach((page) => {
+    if (!Array.isArray(page.suppressedGlossary)) return;
+    page.suppressedGlossary = page.suppressedGlossary.filter(
+      (word) => (word || "").trim() !== key
+    );
+  });
+}
+
 function findAllOccurrences(haystack, needle) {
   const out = [];
   if (!haystack || !needle) return out;
@@ -820,6 +914,54 @@ function autoApplyGlossaryToCurrentPage() {
 
   pg.annotations = annotations;
   return added;
+}
+
+function pruneAnnotationsForCurrentPage() {
+  if (!book || !editorEl) return 0;
+  const pg = getCurrentPageObject();
+  if (!pg) return 0;
+  const annotations = ensureAnnotationsArray(pg);
+  if (!annotations.length) return 0;
+
+  assignIdsToAllEntries();
+  const entryMap = new Map();
+  editorEl.querySelectorAll(".entry").forEach((entry) => {
+    const id = ensureEntryHasId(entry);
+    if (id) entryMap.set(id, entry);
+  });
+
+  const keep = [];
+  let removed = 0;
+
+  annotations.forEach((ann) => {
+    const entry = entryMap.get(ann.entryId);
+    if (!entry) {
+      removed += 1;
+      return;
+    }
+    const inner = entry.querySelector(".entry-inner") || entry;
+    const plain = getCleanEntryTextForMatching(inner);
+    const start =
+      typeof ann.startOffset === "number" ? ann.startOffset : 0;
+    const end =
+      typeof ann.endOffset === "number" ? ann.endOffset : start;
+    if (start < 0 || end <= start || end > plain.length) {
+      removed += 1;
+      return;
+    }
+    const slice = plain.slice(start, end);
+    const target = (ann.text || "").trim();
+    if (slice !== target) {
+      removed += 1;
+      return;
+    }
+    keep.push(ann);
+  });
+
+  if (removed > 0) {
+    pg.annotations = keep;
+  }
+  return removed;
 }
 
 function refreshAnnotationsUI() {
@@ -1015,6 +1157,43 @@ function updateAnnotateButtonFromSelection() {
   });
 }
 
+function moveCaretOutOfHighlight({ requireCollapsed = true } = {}) {
+  if (!editorEl) return false;
+  const sel = document.getSelection();
+  if (!sel || sel.rangeCount === 0) return false;
+  if (requireCollapsed && !sel.isCollapsed) return false;
+
+  const caretNode = sel.focusNode || sel.anchorNode;
+  if (!caretNode) return false;
+
+  const highlightEl =
+    (caretNode.nodeType === Node.ELEMENT_NODE
+      ? caretNode
+      : caretNode.parentElement)?.closest(".annotation-highlight") || null;
+  if (!highlightEl || !highlightEl.parentNode) return false;
+
+  const afterRange = document.createRange();
+  afterRange.setStartAfter(highlightEl);
+  afterRange.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(afterRange);
+  return true;
+}
+
+function setDualViewEnabled(enabled, { persist = true } = {}) {
+  const body = document.body;
+  if (!body) return;
+  body.classList.toggle("dual-view-active", !!enabled);
+  if (dualViewBtn) {
+    dualViewBtn.setAttribute("aria-pressed", enabled ? "true" : "false");
+    dualViewBtn.classList.toggle("is-active", !!enabled);
+  }
+  if (book) book.memoVisible = !!enabled;
+  if (persist) {
+    triggerAutosave();
+  }
+}
+
 function populateAnnotationForm(data) {
   if (annotationSelectedText) {
     annotationSelectedText.textContent = data?.text || "—";
@@ -1186,7 +1365,7 @@ function deleteAnnotation(annotationId) {
   const next = annotations.filter((ann) => ann.id !== annotationId);
   const removedAnn = annotations.find((ann) => ann.id === annotationId);
   if (removedAnn && removedAnn.text) {
-    addSuppressedGlossaryWord(pg, removedAnn.text);
+    removeGlossaryWord(book, removedAnn.text);
   }
   pg.annotations = next;
   persistBookToStorage();
@@ -1226,7 +1405,7 @@ function deleteAnnotationGroup(groupKey) {
 
   // Suppress this word on THIS page so auto-recognition doesn't resurrect it.
   const sample = annotations.find((ann) => annotationGroupKey(ann) === groupKey);
-  if (sample && sample.text) addSuppressedGlossaryWord(pg, sample.text);
+  if (sample && sample.text) removeGlossaryWord(book, sample.text);
 
   pg.annotations = next;
   persistBookToStorage();
@@ -1685,6 +1864,8 @@ function persistBookToStorage() {
   if (!shelf || !book) return;
 
   book.lastPageByChapter = lastPageByChapter;
+  if (memoEditor) book.memoContent = memoEditor.innerHTML;
+  book.memoVisible = document.body.classList.contains("dual-view-active");
 
   shelves = loadShelves();
   shelf = shelves.find((s) => s.id === shelfId);
@@ -1771,6 +1952,7 @@ function loadPageIntoEditor(ch, n) {
   const firstInner = editorEl.querySelector(".entry .entry-inner");
   if (firstInner) setCaretInside(firstInner);
   if (pageTitleInput) pageTitleInput.value = pg.title || "";
+  if (memoEditor) memoEditor.innerHTML = book.memoContent || "";
   keepCaretBreathingRoom();
   clearRangeSelectionUI();
 
@@ -1798,18 +1980,45 @@ function markSaved() {
 function closeAllPopovers() {
   if (pagePopover) pagePopover.classList.remove("open");
   if (shortcutsPopover) shortcutsPopover.classList.remove("open");
+  if (viewPopover) viewPopover.classList.remove("open");
   if (pagePill) pagePill.classList.remove("is-open");
   if (shortcutsBtn) shortcutsBtn.classList.remove("is-open");
+  if (viewMenuBtn) viewMenuBtn.classList.remove("is-open");
   if (pagePill) pagePill.setAttribute("aria-expanded", "false");
+  if (viewMenuBtn) viewMenuBtn.setAttribute("aria-expanded", "false");
 }
 
 function openPopover(popEl, anchorEl) {
   if (!popEl || !anchorEl) return;
-  closeAllPopovers();
-  const r = anchorEl.getBoundingClientRect();
-  popEl.style.top = `${window.scrollY + r.bottom + 8}px`;
-  popEl.style.left = `${window.scrollX + r.left}px`;
   popEl.classList.add("open");
+  const r = anchorEl.getBoundingClientRect();
+  const margin = 12;
+  let top = window.scrollY + r.bottom + 8;
+  let left = window.scrollX + r.left;
+
+  const popWidth = popEl.offsetWidth;
+  const popHeight = popEl.offsetHeight;
+  const viewportRight = window.scrollX + window.innerWidth - margin;
+  const viewportLeft = window.scrollX + margin;
+  const viewportBottom = window.scrollY + window.innerHeight - margin;
+  const desiredLeft = left + popWidth;
+
+  if (desiredLeft > viewportRight) {
+    left = window.scrollX + r.right - popWidth;
+  }
+  if (left < viewportLeft) left = viewportLeft;
+
+  if (top + popHeight > viewportBottom) {
+    const above = window.scrollY + r.top - popHeight - 8;
+    if (above > window.scrollY + margin) {
+      top = above;
+    } else {
+      top = Math.max(window.scrollY + margin, viewportBottom - popHeight);
+    }
+  }
+
+  popEl.style.top = `${top}px`;
+  popEl.style.left = `${left}px`;
 }
 
 let confirmModalAction = null;
@@ -1843,14 +2052,18 @@ document.addEventListener("click", (e) => {
   const t = e.target;
   const clickedInsidePagePop = pagePopover && pagePopover.contains(t);
   const clickedInsideShort = shortcutsPopover && shortcutsPopover.contains(t);
+  const clickedInsideView = viewPopover && viewPopover.contains(t);
   const clickedPagePill = pagePill && pagePill.contains(t);
   const clickedShortBtn = shortcutsBtn && shortcutsBtn.contains(t);
+  const clickedViewBtn = viewMenuBtn && viewMenuBtn.contains(t);
 
   if (
     clickedInsidePagePop ||
     clickedInsideShort ||
+    clickedInsideView ||
     clickedPagePill ||
-    clickedShortBtn
+    clickedShortBtn ||
+    clickedViewBtn
   )
     return;
   closeAllPopovers();
@@ -2264,6 +2477,8 @@ if (!shelf || !book) {
 
   editorSetHTML(pg?.content || "");
   if (pageTitleInput) pageTitleInput.value = pg?.title || "";
+  if (memoEditor) memoEditor.innerHTML = book.memoContent || "";
+  setDualViewEnabled(Boolean(book.memoVisible), { persist: false });
   keepCaretBreathingRoom();
   clearRangeSelectionUI();
   refreshAnnotationsUI();
@@ -2302,6 +2517,7 @@ if (pagePill) {
       closeAllPopovers();
       return;
     }
+    closeAllPopovers();
     pagePill.classList.add("is-open");
     pagePill.setAttribute("aria-expanded", "true");
     openPopover(pagePopover, pagePill);
@@ -2317,8 +2533,68 @@ if (shortcutsBtn) {
       closeAllPopovers();
       return;
     }
+    closeAllPopovers();
     shortcutsBtn.classList.add("is-open");
     openPopover(shortcutsPopover, shortcutsBtn);
+  });
+}
+
+if (viewMenuBtn) {
+  viewMenuBtn.addEventListener("click", () => {
+    if (!viewPopover) return;
+    const isOpen = viewPopover.classList.contains("open");
+    if (isOpen) {
+      closeAllPopovers();
+      return;
+    }
+    closeAllPopovers();
+    viewMenuBtn.classList.add("is-open");
+    viewMenuBtn.setAttribute("aria-expanded", "true");
+    openPopover(viewPopover, viewMenuBtn);
+  });
+}
+
+if (annotationsToggleInput) {
+  annotationsToggleInput.addEventListener("change", (e) => {
+    updateViewPref("annotations", e.target.checked);
+  });
+}
+
+if (furiganaToggleInput) {
+  furiganaToggleInput.addEventListener("change", (e) => {
+    updateViewPref("furigana", e.target.checked);
+  });
+}
+
+if (detectAnnotationsBtn) {
+  detectAnnotationsBtn.addEventListener("click", () => {
+    if (!book || !editorEl) return;
+    const added = autoApplyGlossaryToCurrentPage();
+    persistBookToStorage();
+    refreshAnnotationsUI();
+    moveCaretOutOfHighlight({ requireCollapsed: false });
+    if (added > 0) {
+      showToast({
+        title: "Detected annotations",
+        text: `Marked ${added} match${added === 1 ? "" : "es"} on this page.`,
+        emoji: "🔍",
+      });
+    } else {
+      showToast({
+        title: "All good",
+        text: "No additional matches were found.",
+        emoji: "🙂",
+        ms: 1800,
+      });
+    }
+  });
+}
+
+if (dualViewBtn) {
+  dualViewBtn.addEventListener("click", () => {
+    const next = !document.body.classList.contains("dual-view-active");
+    setDualViewEnabled(next);
+    if (next && memoEditor) memoEditor.focus();
   });
 }
 
@@ -2483,6 +2759,56 @@ if (pageTitleInput) {
 // ---- Autosave (debounced) ----
 let saveTimer = null;
 
+function triggerAutosave() {
+  if (!shelf || !book) return;
+  markSaving();
+  clearTimeout(saveTimer);
+
+  saveTimer = setTimeout(() => {
+    shelves = loadShelves();
+    shelf = shelves.find((s) => s.id === shelfId);
+    if (!shelf) return;
+
+    const idx = shelf.books.findIndex((b) => b.id === bookId);
+    if (idx === -1) return;
+
+    ensurePagesModel(book);
+    const pruned = pruneAnnotationsForCurrentPage();
+    setPageContent(book, currentChapter, currentPage, editorGetHTML());
+    if (memoEditor) {
+      book.memoContent = memoEditor.innerHTML;
+    }
+    book.memoVisible = document.body.classList.contains("dual-view-active");
+    book.updatedAt = Date.now();
+    book.currentChapter = currentChapter;
+    book.currentPage = currentPage;
+    book.lastPageByChapter = lastPageByChapter;
+
+    shelf.books[idx] = {
+      ...shelf.books[idx],
+      pages: book.pages,
+      currentChapter: book.currentChapter,
+      currentPage: book.currentPage,
+      lastPageByChapter: book.lastPageByChapter,
+      memoContent: book.memoContent,
+      memoVisible: book.memoVisible,
+      updatedAt: book.updatedAt,
+    };
+
+    shelf.updatedAt = Date.now();
+    shelf.bookCount = Array.isArray(shelf.books) ? shelf.books.length : 0;
+
+    shelves = shelves.map((s) => (s.id === shelf.id ? shelf : s));
+    saveShelves(shelves);
+
+    renderPageLists();
+    if (pruned > 0) {
+      refreshAnnotationsUI();
+    }
+    markSaved();
+  }, 250);
+}
+
 if (editorEl) {
   editorEl.addEventListener("input", () => {
     if (!shelf || !book) return;
@@ -2492,42 +2818,7 @@ if (editorEl) {
     ensureTopLevelEntries();
     clearRangeSelectionUI();
 
-    markSaving();
-    clearTimeout(saveTimer);
-
-    saveTimer = setTimeout(() => {
-      shelves = loadShelves();
-      shelf = shelves.find((s) => s.id === shelfId);
-      if (!shelf) return;
-
-      const idx = shelf.books.findIndex((b) => b.id === bookId);
-      if (idx === -1) return;
-
-      ensurePagesModel(book);
-      setPageContent(book, currentChapter, currentPage, editorGetHTML());
-      book.updatedAt = Date.now();
-      book.currentChapter = currentChapter;
-      book.currentPage = currentPage;
-      book.lastPageByChapter = lastPageByChapter;
-
-      shelf.books[idx] = {
-        ...shelf.books[idx],
-        pages: book.pages,
-        currentChapter: book.currentChapter,
-        currentPage: book.currentPage,
-        lastPageByChapter: book.lastPageByChapter,
-        updatedAt: book.updatedAt,
-      };
-
-      shelf.updatedAt = Date.now();
-      shelf.bookCount = Array.isArray(shelf.books) ? shelf.books.length : 0;
-
-      shelves = shelves.map((s) => (s.id === shelf.id ? shelf : s));
-      saveShelves(shelves);
-
-      renderPageLists();
-      markSaved();
-    }, 250);
+    triggerAutosave();
   });
 
   // Only show block boundaries when selecting a bigger chunk
@@ -2562,9 +2853,19 @@ if (editorEl) {
     handleSelectionTracking();
   });
 
+  editorEl.addEventListener("beforeinput", (e) => {
+    if (!e) return;
+    const type = e.inputType || "";
+    const isInsert = type.startsWith("insert");
+    if (!isInsert) return;
+    moveCaretOutOfHighlight({ requireCollapsed: true });
+  });
+
   // Enter = new block (prevents “one giant block” merging)
   editorEl.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
+    // Ignore IME composition confirmations so Japanese/Korean/Chinese input can finish normally.
+    if (e.isComposing || e.keyCode === 229) return;
 
     const sel = document.getSelection();
     if (!sel || sel.rangeCount === 0) return;
@@ -2578,7 +2879,11 @@ if (editorEl) {
     const type = normalizeType(currentEntry.dataset.type);
     const inner = currentEntry.querySelector(".entry-inner") || currentEntry;
 
-    const range = sel.getRangeAt(0);
+    if (moveCaretOutOfHighlight({ requireCollapsed: false })) {
+      if (!sel || sel.rangeCount === 0) return;
+    }
+
+    let range = sel.getRangeAt(0);
 
     // Extract everything AFTER caret into a new entry
     const extractRange = range.cloneRange();
@@ -2668,6 +2973,14 @@ if (editorEl) {
   });
 }
 
+if (memoEditor) {
+  memoEditor.addEventListener("input", () => {
+    if (!book) return;
+    book.memoContent = memoEditor.innerHTML;
+    triggerAutosave();
+  });
+}
+
 if (annotateBtn) {
   annotateBtn.addEventListener("click", () => {
     if (!pendingAnnotationSelection) return;
@@ -2699,4 +3012,3 @@ if (annotationForm) {
     saveAnnotationFromForm();
   });
 }
-

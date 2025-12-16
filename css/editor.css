@@ -1,8 +1,30 @@
 :root {
-  --paper: #fbf9f6;
+  /* Easy-on-the-eyes editor palette */
   --ink: #2b2b2b;
-  --line: #e6e2dc;
-  --accent: #f3c6d3;
+  --ink-soft: #4b4b4b;
+  --muted: #7a7a7a;
+
+  /* Neutral warm paper + soft cool tint (matches Shiori vibe) */
+  --paper-1: #fbf7f0;
+  --paper-2: #f3f6f2;
+  --paper-3: #f3f1fb;
+
+  --line: rgba(43, 42, 40, 0.10);
+  --line-soft: rgba(43, 42, 40, 0.06);
+
+  /* Pink accent stays, but slightly calmer */
+  --accent: #f0b8c8;
+  --accent-soft: rgba(240, 184, 200, 0.22);
+
+  /* Editor page surface */
+  --surface: rgba(255, 254, 253, 0.676);
+  --surface-strong: rgba(255, 255, 255, 0.92);
+
+  /* Shared pill gradient (mirrors + Add Book button) */
+  --pill-grad-start: rgba(215, 210, 255, 0.68);
+  --pill-grad-end: rgba(246, 198, 214, 0.68);
+  --pill-grad-strong-start: rgba(215, 210, 255, 0.9);
+  --pill-grad-strong-end: rgba(246, 198, 214, 0.9);
 }
 
 * {
@@ -13,7 +35,12 @@ body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
-  background: var(--paper);
+  /* Soft, non-distracting gradient that reduces eye strain */
+  background:
+    radial-gradient(900px 520px at 15% 0%, rgba(236, 252, 240, 0.524), rgba(254, 238, 255, 0) 60%),
+    radial-gradient(900px 520px at 85% 0%, rgba(217, 236, 248, 0.26), rgba(221, 210, 255, 0) 60%),
+    radial-gradient(1100px 700px at 50% 100%, rgba(255, 225, 233, 0.535), rgba(246, 198, 214, 0) 65%),
+    linear-gradient(180deg, var(--paper-2), var(--paper-1));
   color: var(--ink);
   padding-bottom: 140px;
 }
@@ -27,8 +54,17 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 12px 20px;
-  background: var(--paper);
-  border-bottom: 1px solid var(--line);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(220, 237, 254, 0.38),
+      rgba(210, 242, 219, 0.28),
+      rgba(246, 198, 214, 0.20)
+    ),
+    rgba(255, 255, 255, 1);
+  border-bottom: 1px solid var(--line-soft);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+  isolation: isolate;
 }
 
 .toolbar-left,
@@ -38,25 +74,43 @@ body {
   align-items: center;
 }
 
+.toolbar-right {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+
 .pill {
   padding: 8px 12px;
   border-radius: 999px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-soft);
   background: rgba(255, 255, 255, 0.9);
   font-size: 14px;
+  color: var(--ink);
   cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    background 150ms ease,
+    border-color 150ms ease;
 }
 
 .pill:hover {
-  background: white;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+  background: #fff;
+  border-color: rgba(43, 42, 40, 0.16);
+  box-shadow: 0 8px 18px rgba(43, 42, 40, 0.08);
   transform: translateY(-1px);
 }
 
 .pill:active {
+  background: rgba(255, 255, 255, 0.88);
   transform: translateY(0px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 10px rgba(43, 42, 40, 0.08);
+}
+
+.pill.is-active {
+  border-color: rgba(243, 198, 211, 0.9);
+  box-shadow: 0 10px 24px rgba(243, 198, 211, 0.35);
 }
 
 .pill.icon {
@@ -76,12 +130,49 @@ body {
 }
 
 .pill.is-open {
-  background: white;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  background: #fff;
+  border-color: rgba(43, 42, 40, 0.18);
+  box-shadow: 0 8px 18px rgba(43, 42, 40, 0.08);
 }
 
 .pill.muted {
-  color: #888;
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(43, 42, 40, 0.08);
+  color: var(--muted);
+  box-shadow: none;
+}
+
+#back-btn,
+#new-page-btn {
+  background: linear-gradient(
+    135deg,
+    var(--pill-grad-strong-start),
+    var(--pill-grad-strong-end)
+  );
+  border-color: rgba(243, 198, 211, 0.8);
+  color: #3b3032;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+#back-btn:hover,
+#new-page-btn:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(215, 210, 255, 1),
+    rgba(246, 198, 214, 1)
+  );
+  border-color: rgba(243, 198, 211, 1);
+  box-shadow: 0 14px 28px rgba(243, 198, 211, 0.4);
+}
+
+#back-btn:active,
+#new-page-btn:active {
+  background: linear-gradient(
+    135deg,
+    rgba(215, 210, 255, 0.92),
+    rgba(246, 198, 214, 0.92)
+  );
+  box-shadow: 0 8px 16px rgba(243, 198, 211, 0.35);
 }
 
 /* Chapter input styling */
@@ -91,7 +182,7 @@ body {
   gap: 8px;
   padding: 6px 12px;
   border-radius: 999px;
-  border: 1px dashed var(--line);
+  border: 1px dashed var(--line-soft);
   background: transparent;
 }
 
@@ -129,7 +220,7 @@ body {
 }
 
 #page-title-input {
-  border: 1px dashed var(--line);
+  border: 1px dashed var(--line-soft);
   background: transparent;
   border-radius: 999px;
   padding: 6px 12px;
@@ -150,20 +241,84 @@ body {
 }
 
 /* Page container */
+.workspace {
+  max-width: 900px;
+  margin: 40px auto 0;
+}
+
+.dual-view-active .workspace {
+  max-width: 1280px;
+  display: grid;
+  grid-template-columns: minmax(520px, 1fr) minmax(300px, 360px);
+  gap: 18px;
+  align-items: flex-start;
+}
+
 .page {
-  max-width: 800px;
-  margin: 40px auto 120px;
-  padding: 40px 50px calc(50px + 1vh);
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
-  min-height: 80vh;
+  max-width: 900px;
+  margin: 0;
+  padding: 42px 54px calc(54px + 1vh);
+  background: var(--surface);
+  border: 1px solid rgba(43, 42, 40, 0.06);
+  border-radius: 14px;
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  min-height: 85vh;
   height: auto;
 }
 
-.annotations-open #page-layout {
-  margin-right: 420px;
-  transition: margin 200ms ease;
+.dual-view-active .page {
+  margin: 0;
+}
+
+.memo-pane {
+  display: none;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid rgba(43, 42, 40, 0.05);
+  border-radius: 14px;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  min-height: 60vh;
+  padding: 28px 28px 32px;
+}
+
+.dual-view-active .memo-pane {
+  display: flex;
+}
+
+.memo-pane__header {
+  margin-bottom: 14px;
+}
+
+.memo-pane__title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.memo-pane__subtitle {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.memo-editor {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 45vh;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.memo-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #aaa;
 }
 
 .page-header {
@@ -178,7 +333,7 @@ body {
 
 .page-meta {
   font-size: 14px;
-  color: #777;
+  color: var(--muted);
 }
 
 /* Writing editor (contenteditable) */
@@ -187,7 +342,7 @@ body {
   border: none;
   outline: none;
   font-size: 16px;
-  line-height: 1.8;
+  line-height: 1.9;
   font-family: inherit;
   min-height: 60vh;
   height: auto;
@@ -218,7 +373,7 @@ body {
 
 .entry.is-selected {
   outline: 2px solid rgba(243, 198, 211, 0.55);
-  background: rgba(243, 198, 211, 0.10);
+  background: rgba(243, 198, 211, 0.1);
 }
 
 /* Script-type styling that still reads like one continuous doc */
@@ -519,6 +674,97 @@ body {
   background: rgba(243, 198, 211, 0.22);
 }
 
+.view-popover {
+  width: 280px;
+  max-width: min(320px, calc(100% - 32px));
+}
+
+.view-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  transition: background 120ms ease;
+  cursor: pointer;
+}
+
+.view-toggle + .view-toggle {
+  margin-top: 6px;
+}
+
+.view-toggle:hover {
+  background: rgba(243, 198, 211, 0.18);
+}
+
+.view-toggle__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.view-toggle__label {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.view-toggle__hint {
+  color: #777;
+  font-size: 12px;
+}
+
+.view-switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.view-switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+
+.view-switch__slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: rgba(43, 42, 40, 0.25);
+  transition: background 150ms ease;
+}
+
+.view-switch__slider::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  top: 2px;
+  left: 2px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 4px 8px rgba(43, 42, 40, 0.25);
+  transition: transform 160ms ease;
+}
+
+.view-switch input:checked + .view-switch__slider {
+  background: linear-gradient(
+    135deg,
+    rgba(215, 210, 255, 0.9),
+    rgba(246, 198, 214, 0.9)
+  );
+}
+
+.view-switch input:checked + .view-switch__slider::after {
+  transform: translateX(18px);
+}
+
 .shortcut-row {
   display: flex;
   align-items: center;
@@ -602,18 +848,40 @@ kbd {
 }
 
 /* Pills variants */
+.pill.primary {
+  background: rgba(243, 198, 211, 0.25);
+  border-color: rgba(243, 198, 211, 0.6);
+  color: #5d3943;
+}
+
+.pill.primary:hover {
+  background: rgba(243, 198, 211, 0.35);
+  border-color: rgba(243, 198, 211, 0.75);
+}
+
+.pill.primary:active {
+  background: rgba(243, 198, 211, 0.3);
+}
+
 .pill.ghost {
   background: transparent;
+  border-color: rgba(43, 42, 40, 0.08);
+  color: var(--muted);
+}
+
+.pill.ghost:hover {
+  background: rgba(43, 42, 40, 0.03);
 }
 
 .pill.danger {
-  background: rgba(243, 198, 211, 0.32);
-  border-color: rgba(243, 129, 162, 0.8);
-  color: #8a1b3d;
+  background: rgba(214, 104, 138, 0.12);
+  border-color: rgba(214, 104, 138, 0.4);
+  color: #6d1734;
 }
 
 .pill.danger:hover {
-  background: rgba(243, 198, 211, 0.45);
+  background: rgba(214, 104, 138, 0.18);
+  border-color: rgba(214, 104, 138, 0.55);
 }
 
 /* Modal */
@@ -703,11 +971,22 @@ kbd {
   position: absolute;
   padding: 8px 12px;
   border-radius: 999px;
-  border: 1px solid var(--line);
-  background: white;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(243, 198, 211, 0.5);
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--ink);
+  box-shadow: 0 10px 24px rgba(43, 42, 40, 0.12);
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    background 150ms ease;
   display: none;
   z-index: 90;
+}
+
+.annotate-btn:hover {
+  background: rgb(248, 237, 237);
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(43, 42, 40, 0.12);
 }
 
 .annotate-btn.show {
@@ -863,16 +1142,23 @@ kbd {
 }
 
 .annotation-item button {
-  border: 1px solid transparent;
-  background: transparent;
+  border: 1px solid rgba(243, 198, 211, 0.5);
+  background: rgba(243, 198, 211, 0.22);
   border-radius: 8px;
   padding: 4px 8px;
   cursor: pointer;
   font-size: 12px;
+  color: var(--ink);
+  transition:
+    background 150ms ease,
+    border-color 120ms ease,
+    box-shadow 150ms ease;
 }
 
 .annotation-item button:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(243, 198, 211, 0.32);
+  border-color: rgba(243, 198, 211, 0.75);
+  box-shadow: 0 8px 18px rgba(243, 198, 211, 0.35);
 }
 
 .annotation-empty {
@@ -881,6 +1167,10 @@ kbd {
 }
 
 .annotation-highlight {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: bottom;
   background: rgba(243, 198, 211, 0.5);
   border-radius: 4px;
   padding: 0 1px;
@@ -961,6 +1251,35 @@ kbd {
 .annotation-highlight[data-tooltip=""]::after,
 .annotation-highlight[data-tooltip=""]::before {
   display: none;
+}
+
+.annotation-furigana {
+  font-size: 0.72em;
+  line-height: 1.1;
+  margin-bottom: 2px;
+  color: #6a5861;
+  text-align: center;
+}
+
+body.furigana-hidden .annotation-furigana {
+  display: none !important;
+}
+
+body.annotations-hidden .annotation-highlight {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+body.annotations-hidden .annotation-highlight__text {
+  display: inline;
+}
+
+body.annotations-hidden .annotation-highlight::before,
+body.annotations-hidden .annotation-highlight::after {
+  display: none !important;
 }
 /* --- TOC preview + renumber flash --- */
 .toc-label-wrap {

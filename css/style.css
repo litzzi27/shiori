@@ -1,7 +1,7 @@
 :root {
   /* Paper + ink */
-  --paper: #faf7f2;
-  --paper-2: #f3eee7;
+  --paper: #fff5fd81;
+  --paper-2: #e8f9ff8a;
   --ink: #2b2a28;
   --muted: #6f6b63;
 
@@ -58,8 +58,14 @@ header {
   z-index: 20;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  background: color-mix(in srgb, var(--paper) 80%, transparent);
+  background: linear-gradient(
+    135deg,
+    rgba(220, 237, 254, 0.433),
+    rgba(210, 242, 219, 0.25),
+    rgba(198, 233, 246, 0.25)
+  );
   border-bottom: 1px solid rgba(43, 42, 40, 0.06);
+  background-blend-mode: soft-light;
 }
 
 .wrap {
@@ -83,17 +89,15 @@ header {
 }
 
 .brand .logo {
-  width: 36px;
-  height: 36px;
+  width: 48;
+  height: 48px;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--p-lav), var(--p-blush));
-  box-shadow: 0 8px 16px rgba(43, 42, 40, 0.1);
 }
 
 .brand h1 {
-  font-size: 20px;
+  font-size: 26px;
   line-height: 1.2;
-  margin: 0;
+  margin: 8px 0 0 -4px;
   letter-spacing: -0.2px;
 }
 
@@ -317,9 +321,8 @@ main {
   place-items: center;
   background: var(--p-sky);
 
-
   overflow: hidden; /* hard-clips the image */
-  line-height: 0;   /* removes any inline image spacing weirdness */
+  line-height: 0; /* removes any inline image spacing weirdness */
 }
 
 .cover img {

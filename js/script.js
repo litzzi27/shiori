@@ -380,7 +380,7 @@ function renderShelves() {
     card.appendChild(menu);
 
     card.addEventListener("click", () => {
-      window.location.href = `shelf.html?id=${shelf.id}`;
+      window.location.href = `/pages/shelf.html?id=${shelf.id}`;
     });
 
     grid.appendChild(card);
