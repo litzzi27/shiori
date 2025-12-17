@@ -157,6 +157,25 @@
       </label>
     </div>
 
+    <!-- Speaker color palette -->
+    <div class="popover speaker-popover" id="speaker-popover" aria-hidden="true">
+      <div class="popover-title">Speaker colors</div>
+      <div class="speaker-presets" id="speaker-presets"></div>
+      <button class="pill ghost speaker-reset-btn" type="button" id="speaker-reset-btn">
+        Reset to default
+      </button>
+      <form class="speaker-add-form" id="speaker-add-form" autocomplete="off">
+        <label class="speaker-add-label" for="speaker-new-color">Add a new color</label>
+        <div class="speaker-add-controls">
+          <input type="color" id="speaker-new-color" value="#f0b8c8" />
+          <button class="pill" type="submit">Save preset</button>
+        </div>
+      </form>
+      <div class="speaker-popover-hint">
+        Tap a preset to recolor the highlighted dialogue bar. Presets stay on this device and can be removed anytime.
+      </div>
+    </div>
+
     <!-- Page + Memo workspace -->
     <div class="workspace" id="workspace">
       <main class="page" id="page-layout">
@@ -219,7 +238,13 @@
       <form class="annotation-form" id="annotation-form" autocomplete="off">
         <label class="annotation-field">
           <span class="annotation-label">Reading</span>
-          <input type="text" id="annotation-reading" placeholder="e.g., たもん" />
+          <div class="reading-input-row">
+            <input type="text" id="annotation-reading" placeholder="e.g., たもん" />
+            <button class="pill ghost reading-separator-btn" type="button" id="reading-separator-btn">
+              |
+            </button>
+          </div>
+          <div class="reading-hint">Use the splitter to align hiragana with each Kanji (adds ・ between groups).</div>
         </label>
 
         <div class="annotation-field">

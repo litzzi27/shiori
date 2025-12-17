@@ -1,9 +1,18 @@
 const STORAGE_KEY = "shiori_shelves";
 const VIEW_PREFS_KEY = "shiori_editor_viewPrefs";
+const SPEAKER_PRESETS_KEY = "shiori_editor_speakerPresets";
+const SHIORI_CLIPBOARD_MIME = "application/x-shiori-entries";
 const defaultViewPrefs = {
   annotations: true,
   furigana: true,
 };
+const defaultSpeakerPresets = [
+  "#f0b8c8",
+  "#f9d8a7",
+  "#a3d8ff",
+  "#cdb4ff",
+  "#b6f2c9",
+];
 
 // ---- Helpers ----
 function loadShelves() {
@@ -56,7 +65,47 @@ function saveViewPrefs(prefs) {
   }
 }
 
+function normalizeHexColor(value) {
+  if (typeof value !== "string") return null;
+  let v = value.trim();
+  if (!v) return null;
+  if (!v.startsWith("#")) v = `#${v}`;
+  v = v.toLowerCase();
+  if (/^#[0-9a-f]{3}$/i.test(v)) {
+    v = `#${v[1]}${v[1]}${v[2]}${v[2]}${v[3]}${v[3]}`;
+  }
+  if (/^#[0-9a-f]{6}$/i.test(v)) return v;
+  return null;
+}
+
+function loadSpeakerPresets() {
+  try {
+    const raw = localStorage.getItem(SPEAKER_PRESETS_KEY);
+    if (!raw) return [...defaultSpeakerPresets];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [...defaultSpeakerPresets];
+    const list = parsed
+      .map((color) => normalizeHexColor(color))
+      .filter(Boolean);
+    return list.length ? list : [...defaultSpeakerPresets];
+  } catch {
+    return [...defaultSpeakerPresets];
+  }
+}
+
+function saveSpeakerPresets(presets) {
+  try {
+    localStorage.setItem(
+      SPEAKER_PRESETS_KEY,
+      JSON.stringify(presets || [])
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
 let viewPrefs = loadViewPrefs();
+let speakerPresets = loadSpeakerPresets();
 
 // ---- Data model helpers ----
 // Each page: { id, ch (number|null), n (page# within chapter), title, content, updatedAt }
@@ -202,6 +251,11 @@ const viewPopover = document.getElementById("view-popover");
 const annotationsToggleInput = document.getElementById("toggle-annotations");
 const furiganaToggleInput = document.getElementById("toggle-furigana");
 const detectAnnotationsBtn = document.getElementById("detect-annotations-btn");
+const speakerPopover = document.getElementById("speaker-popover");
+const speakerPresetsEl = document.getElementById("speaker-presets");
+const speakerAddForm = document.getElementById("speaker-add-form");
+const speakerNewColorInput = document.getElementById("speaker-new-color");
+const speakerResetBtn = document.getElementById("speaker-reset-btn");
 
 const newPageBtn = document.getElementById("new-page-btn");
 
@@ -229,6 +283,7 @@ const annotationNotesInput = document.getElementById("annotation-notes");
 const annotationTypeInputs = document.querySelectorAll(
   'input[name="annotation-reading-type"]'
 );
+const readingSeparatorBtn = document.getElementById("reading-separator-btn");
 const annotationListEl = document.getElementById("annotation-list");
 
 function applyViewPrefs() {
@@ -307,9 +362,11 @@ function editorSetHTML(html) {
   if (!editorEl) return;
   editorEl.innerHTML = (html ?? "").toString();
   if (editorEl.innerHTML.trim() === "") editorEl.innerHTML = "";
+  closeSpeakerPopover();
   ensureEditorHasEntry();
   assignIdsToAllEntries();
   refreshEntryTypeClasses();
+  ensureSpeakerBarsForAllEntries();
 }
 
 function editorGetHTML() {
@@ -1199,6 +1256,15 @@ function populateAnnotationForm(data) {
     annotationSelectedText.textContent = data?.text || "—";
   }
   if (annotationReadingInput) {
+    if (Array.isArray(data?.readingTokens) && data.readingTokens.length) {
+      annotationReadingInput.dataset.tokens = JSON.stringify(
+        data.readingTokens
+      );
+    } else if (data?.reading) {
+      annotationReadingInput.dataset.tokens = JSON.stringify([data.reading]);
+    } else {
+      delete annotationReadingInput.dataset.tokens;
+    }
     annotationReadingInput.value = data?.reading || "";
   }
   if (annotationMeaningInput) {
@@ -1213,6 +1279,9 @@ function populateAnnotationForm(data) {
 function clearAnnotationFormFields() {
   if (annotationForm) {
     annotationForm.reset();
+  }
+  if (annotationReadingInput) {
+    delete annotationReadingInput.dataset.tokens;
   }
   populateAnnotationForm(null);
 }
@@ -1293,6 +1362,15 @@ function saveAnnotationFromForm() {
 
   const annotations = ensureAnnotationsArray(pg);
   const reading = (annotationReadingInput?.value || "").trim();
+  let readingTokens = null;
+  if (annotationReadingInput?.dataset?.tokens) {
+    try {
+      const parsed = JSON.parse(annotationReadingInput.dataset.tokens);
+      if (Array.isArray(parsed)) readingTokens = parsed;
+    } catch {
+      readingTokens = null;
+    }
+  }
   const meaning = (annotationMeaningInput?.value || "").trim();
   const notes = (annotationNotesInput?.value || "").trim();
   const readingType = getSelectedReadingType();
@@ -1306,6 +1384,11 @@ function saveAnnotationFromForm() {
     endOffset: selection.endOffset,
     text,
     reading,
+    readingTokens: Array.isArray(readingTokens)
+      ? readingTokens
+      : reading
+      ? [reading]
+      : [],
     readingType,
     meaning,
     notes,
@@ -1434,12 +1517,94 @@ function nearestEntry(node) {
 function setCaretInside(el) {
   if (!el) return;
   el.focus();
+  ensureEntryHasVisiblePlaceholder(el);
   const range = document.createRange();
   range.selectNodeContents(el);
-  range.collapse(false);
+
+  const hasContent = (el.innerText || "").trim().length > 0;
+  if (!hasContent) {
+    const bar = el.querySelector(".entry-speaker-bar");
+    if (bar && bar.parentNode === el) {
+      range.setStartAfter(bar);
+      range.collapse(true);
+    } else {
+      range.collapse(false);
+    }
+  } else {
+    range.collapse(false);
+  }
+
   const sel = window.getSelection();
   sel.removeAllRanges();
   sel.addRange(range);
+}
+
+function ensureEntryHasVisiblePlaceholder(target) {
+  if (!target) return;
+  const inner = target.classList?.contains("entry-inner")
+    ? target
+    : target.querySelector?.(".entry-inner");
+  if (!inner) return;
+  const bar = inner.querySelector(".entry-speaker-bar");
+  if (!bar) return;
+
+  const sibling = bar.nextSibling;
+  const isPlaceholder =
+    sibling &&
+    sibling.nodeType === Node.ELEMENT_NODE &&
+    sibling.tagName === "BR" &&
+    sibling.dataset &&
+    sibling.dataset.speakerPlaceholder === "true";
+
+  const hasText = (inner.innerText || "").trim().length > 0;
+
+  if (!hasText) {
+    if (!isPlaceholder) {
+      const br = document.createElement("br");
+      br.dataset.speakerPlaceholder = "true";
+      bar.insertAdjacentElement("afterend", br);
+    }
+  } else if (isPlaceholder) {
+    sibling.remove();
+  }
+}
+
+function applyHighlightHoverStack(highlight) {
+  hoverHighlightStack.forEach((node) =>
+    node.classList.remove("annotation-highlight--stack-hover")
+  );
+  hoverHighlightStack.clear();
+
+  if (!highlight) return;
+  let current = highlight;
+  while (current && current.classList?.contains("annotation-highlight")) {
+    current.classList.add("annotation-highlight--stack-hover");
+    hoverHighlightStack.add(current);
+    current = current.parentElement?.closest(".annotation-highlight") || null;
+  }
+}
+
+function handleHighlightPointerOver(event) {
+  if (!editorEl) return;
+  const highlight = event.target.closest(".annotation-highlight");
+  if (!highlight || !editorEl.contains(highlight)) return;
+  applyHighlightHoverStack(highlight);
+}
+
+function handleHighlightPointerOut(event) {
+  if (!editorEl) return;
+  const sourceHighlight = event.target.closest(".annotation-highlight");
+  if (!sourceHighlight) return;
+  const nextTarget =
+    event.relatedTarget instanceof Element ? event.relatedTarget : null;
+  if (nextTarget && editorEl.contains(nextTarget)) {
+    const nextHighlight = nextTarget.closest(".annotation-highlight");
+    if (nextHighlight) {
+      applyHighlightHoverStack(nextHighlight);
+      return;
+    }
+  }
+  applyHighlightHoverStack(null);
 }
 
 function createEntryBlock(type, text = "") {
@@ -1453,7 +1618,203 @@ function createEntryBlock(type, text = "") {
   inner.textContent = text;
 
   entry.appendChild(inner);
+  ensureSpeakerBarForEntry(entry);
   return entry;
+}
+
+function entryNeedsSpeakerBar(entry) {
+  if (!entry) return false;
+  const type = normalizeType(entry.dataset.type || "narration");
+  return type === "dialogue" || type === "thought";
+}
+
+function ensureSpeakerBarForEntry(entry) {
+  if (!entry) return;
+  const inner = entry.querySelector(".entry-inner");
+  if (!inner) return;
+
+  const needsBar = entryNeedsSpeakerBar(entry);
+  let bar = inner.querySelector(".entry-speaker-bar");
+
+  if (!needsBar) {
+    if (bar) bar.remove();
+    return;
+  }
+
+  if (!bar) {
+    bar = document.createElement("button");
+    bar.type = "button";
+    bar.className = "entry-speaker-bar";
+    bar.setAttribute("aria-label", "Speaker color");
+    bar.setAttribute("contenteditable", "false");
+    bar.tabIndex = -1;
+  } else {
+    bar.setAttribute("contenteditable", "false");
+    bar.tabIndex = -1;
+  }
+
+  if (inner.firstChild !== bar) {
+    inner.insertBefore(bar, inner.firstChild || null);
+  }
+
+  setEntrySpeakerColor(entry, entry.dataset.speakerColor || null);
+  ensureEntryHasVisiblePlaceholder(inner);
+}
+
+function ensureSpeakerBarsForAllEntries() {
+  if (!editorEl) return;
+  editorEl.querySelectorAll(".entry").forEach((entry) => {
+    ensureEntryHasId(entry);
+    ensureSpeakerBarForEntry(entry);
+  });
+}
+
+function getEntrySpeakerColor(entry) {
+  if (!entry) return null;
+  const val = entry.dataset?.speakerColor;
+  return typeof val === "string" && val.trim().length > 0 ? val : null;
+}
+
+function setEntrySpeakerColor(entry, color) {
+  if (!entry) return;
+  const normalized = normalizeHexColor(color);
+  if (normalized) {
+    entry.dataset.speakerColor = normalized;
+    entry.style.setProperty("--speaker-bar-color", normalized);
+  } else {
+    entry.style.removeProperty("--speaker-bar-color");
+    delete entry.dataset.speakerColor;
+  }
+}
+
+function serializeEntriesForClipboard(range) {
+  if (!range) return [];
+  const entries = entriesIntersectingRange(range);
+  if (!entries.length) return [];
+  return entries.map((entry) => ({
+    type: entry.dataset.type || "narration",
+    html: (() => {
+      const inner = entry.querySelector(".entry-inner");
+      if (!inner) return "";
+      const clone = inner.cloneNode(true);
+      clone.querySelectorAll(".entry-speaker-bar").forEach((el) => el.remove());
+      return clone.innerHTML || "";
+    })(),
+    speakerColor: getEntrySpeakerColor(entry),
+  }));
+}
+
+function createEntryFromClipboardItem(item) {
+  if (!item) return null;
+  const entry = createEntryBlock(item.type || "narration", "");
+  const inner = entry.querySelector(".entry-inner");
+  if (inner) {
+    inner.innerHTML =
+      typeof item.html === "string" && item.html.length > 0
+        ? item.html
+        : "<br>";
+  }
+  if (item.speakerColor) {
+    setEntrySpeakerColor(entry, item.speakerColor);
+  }
+  ensureSpeakerBarForEntry(entry);
+  return entry;
+}
+
+function insertEntriesFromClipboardPayload(payload) {
+  if (!Array.isArray(payload) || !payload.length) return false;
+  const nodes = payload
+    .map((item) => createEntryFromClipboardItem(item))
+    .filter(Boolean);
+  if (!nodes.length) return false;
+
+  const sel = document.getSelection();
+  if (!sel || sel.rangeCount === 0) return false;
+
+  const consumeSelection = () => {
+    const currentRange = sel.getRangeAt(0);
+    if (!sel.isCollapsed) {
+      currentRange.deleteContents();
+      sel.removeAllRanges();
+      sel.addRange(currentRange);
+    }
+    return sel.getRangeAt(0);
+  };
+
+  const determineInsertionPoint = (range) => {
+    const entry = nearestEntry(range.startContainer);
+    if (!entry) {
+      return { before: range.startContainer };
+    }
+
+    const inner = entry.querySelector(".entry-inner") || entry;
+    const entryRange = document.createRange();
+    entryRange.selectNodeContents(inner);
+
+    const startsBeforeEntry =
+      range.compareBoundaryPoints(Range.START_TO_START, entryRange) <= 0;
+    if (startsBeforeEntry) {
+      return { before: entry };
+    }
+
+    const startsAfterEntry =
+      range.compareBoundaryPoints(Range.START_TO_END, entryRange) >= 0;
+    if (startsAfterEntry) {
+      return { before: entry.nextSibling };
+    }
+
+    // Split the entry at the caret so we can insert blocks between the halves.
+    const splitRange = range.cloneRange();
+    splitRange.setEnd(inner, inner.childNodes.length);
+    const trailing = splitRange.extractContents();
+
+    const newEntry = createEntryBlock(entry.dataset.type || "narration", "");
+    const newInner = newEntry.querySelector(".entry-inner");
+    if (trailing && trailing.childNodes.length) {
+      newInner.appendChild(trailing);
+    }
+    if ((newInner.innerText || "").trim() === "") {
+      newInner.innerHTML = "<br>";
+    }
+    if ((inner.innerText || "").trim() === "") {
+      inner.innerHTML = "<br>";
+    }
+
+    const color = getEntrySpeakerColor(entry);
+    if (color) setEntrySpeakerColor(newEntry, color);
+    ensureSpeakerBarForEntry(newEntry);
+
+    entry.insertAdjacentElement("afterend", newEntry);
+    return { before: newEntry };
+  };
+
+  let range = sel.getRangeAt(0);
+  if (!sel.isCollapsed) {
+    range = consumeSelection();
+  }
+
+  const entry = nearestEntry(range.startContainer);
+  if (!entry) {
+    replaceRangeWithNodes(range, nodes);
+  } else {
+    const { before } = determineInsertionPoint(range);
+    const frag = document.createDocumentFragment();
+    nodes.forEach((node) => frag.appendChild(node));
+    editorEl.insertBefore(frag, before || entry.nextSibling);
+  }
+
+  assignIdsToAllEntries();
+  ensureSpeakerBarsForAllEntries();
+
+  const lastInserted =
+    nodes[nodes.length - 1].querySelector(".entry-inner") ||
+    nodes[nodes.length - 1];
+  if (lastInserted) setCaretInside(lastInserted);
+
+  keepCaretBreathingRoom();
+  clearRangeSelectionUI();
+  triggerAutosave();
+  return true;
 }
 
 function ensureEntryHasId(entry) {
@@ -1529,6 +1890,130 @@ function setEntryType(entry, type) {
   } else if (entry.classList.contains("entry--blank") && inner) {
     inner.innerHTML = "<br>";
   }
+
+  ensureSpeakerBarForEntry(entry);
+}
+
+// ---- Speaker color presets ----
+function openSpeakerPopoverForEntry(entry, anchor) {
+  if (!speakerPopover || !entry || !anchor) return;
+  activeSpeakerEntry = entry;
+  renderSpeakerPresets();
+  openPopover(speakerPopover, anchor);
+  speakerPopover.setAttribute("aria-hidden", "false");
+}
+
+function closeSpeakerPopover() {
+  if (!speakerPopover) return;
+  speakerPopover.classList.remove("open");
+  speakerPopover.setAttribute("aria-hidden", "true");
+  activeSpeakerEntry = null;
+}
+
+function renderSpeakerPresets() {
+  if (!speakerPresetsEl) return;
+  speakerPresetsEl.innerHTML = "";
+
+  let entry =
+    activeSpeakerEntry && editorEl?.contains(activeSpeakerEntry)
+      ? activeSpeakerEntry
+      : null;
+  if (activeSpeakerEntry && !entry) {
+    activeSpeakerEntry = null;
+  }
+
+  const activeColor = entry ? getEntrySpeakerColor(entry) : null;
+  if (speakerResetBtn) {
+    speakerResetBtn.disabled = !entry;
+  }
+
+  if (!speakerPresets.length) {
+    const empty = document.createElement("div");
+    empty.className = "speaker-empty";
+    empty.textContent = "No saved colors yet.";
+    speakerPresetsEl.appendChild(empty);
+    return;
+  }
+
+  speakerPresets.forEach((color, index) => {
+    const preset = document.createElement("div");
+    preset.className = "speaker-preset";
+    preset.dataset.color = color;
+
+    const swatch = document.createElement("button");
+    swatch.type = "button";
+    swatch.className = "speaker-swatch";
+    swatch.style.setProperty("--speaker-color", color);
+    swatch.title = color;
+    if (activeColor && activeColor === color) {
+      swatch.classList.add("is-active");
+    }
+    swatch.addEventListener("click", () => applySpeakerColor(color));
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "speaker-remove";
+    remove.setAttribute("aria-label", `Remove ${color}`);
+    remove.textContent = "✕";
+    remove.addEventListener("click", (event) => {
+      event.stopPropagation();
+      removeSpeakerPreset(index);
+    });
+
+    preset.appendChild(swatch);
+    preset.appendChild(remove);
+    speakerPresetsEl.appendChild(preset);
+  });
+}
+
+function applySpeakerColor(color) {
+  if (!activeSpeakerEntry || !editorEl?.contains(activeSpeakerEntry)) {
+    closeSpeakerPopover();
+    return;
+  }
+  setEntrySpeakerColor(activeSpeakerEntry, color);
+  triggerAutosave();
+  renderSpeakerPresets();
+}
+
+function addSpeakerPreset(color) {
+  const normalized = normalizeHexColor(color);
+  if (!normalized) {
+    showToast({
+      title: "Pick a color",
+      text: "Choose a valid hex color to save.",
+      emoji: "🎨",
+    });
+    return;
+  }
+  if (speakerPresets.includes(normalized)) {
+    showToast({
+      title: "Already saved",
+      text: `${normalized} is in your list.`,
+      emoji: "🎨",
+    });
+    return;
+  }
+  speakerPresets.push(normalized);
+  saveSpeakerPresets(speakerPresets);
+  renderSpeakerPresets();
+  showToast({
+    title: "Preset added",
+    text: normalized,
+    emoji: "🧷",
+  });
+}
+
+function removeSpeakerPreset(index) {
+  if (index < 0 || index >= speakerPresets.length) return;
+  const [removed] = speakerPresets.splice(index, 1);
+  saveSpeakerPresets(speakerPresets);
+  renderSpeakerPresets();
+  showToast({
+    title: "Preset removed",
+    text: removed || "",
+    emoji: "🗑",
+  });
 }
 
 function rangeTouchesEntry(range, entry) {
@@ -1775,6 +2260,7 @@ function ensureTopLevelEntries() {
   ensureEditorHasEntry();
   assignIdsToAllEntries();
   refreshEntryTypeClasses();
+  ensureSpeakerBarsForAllEntries();
   if (mutated && lastInsertedInner) {
     setCaretInside(lastInsertedInner);
   }
@@ -1842,6 +2328,8 @@ const undoStack = [];
 let pendingAnnotationSelection = null;
 let editingAnnotationId = null;
 let activeAnnotationSelection = null;
+const hoverHighlightStack = new Set();
+let activeSpeakerEntry = null;
 
 // TOC collapse state (not persisted)
 const collapsedChapters = new Set();
@@ -1986,6 +2474,7 @@ function closeAllPopovers() {
   if (viewMenuBtn) viewMenuBtn.classList.remove("is-open");
   if (pagePill) pagePill.setAttribute("aria-expanded", "false");
   if (viewMenuBtn) viewMenuBtn.setAttribute("aria-expanded", "false");
+  closeSpeakerPopover();
 }
 
 function openPopover(popEl, anchorEl) {
@@ -2053,14 +2542,20 @@ document.addEventListener("click", (e) => {
   const clickedInsidePagePop = pagePopover && pagePopover.contains(t);
   const clickedInsideShort = shortcutsPopover && shortcutsPopover.contains(t);
   const clickedInsideView = viewPopover && viewPopover.contains(t);
+  const clickedInsideSpeaker =
+    speakerPopover && speakerPopover.contains(t);
   const clickedPagePill = pagePill && pagePill.contains(t);
   const clickedShortBtn = shortcutsBtn && shortcutsBtn.contains(t);
   const clickedViewBtn = viewMenuBtn && viewMenuBtn.contains(t);
+  const clickedSpeakerBar =
+    t instanceof Element && t.closest(".entry-speaker-bar");
 
   if (
     clickedInsidePagePop ||
     clickedInsideShort ||
     clickedInsideView ||
+    clickedInsideSpeaker ||
+    clickedSpeakerBar ||
     clickedPagePill ||
     clickedShortBtn ||
     clickedViewBtn
@@ -2122,6 +2617,52 @@ if (confirmModalConfirm) {
   confirmModalConfirm.addEventListener("click", () => {
     if (typeof confirmModalAction === "function") confirmModalAction();
     closeConfirmModal();
+  });
+}
+
+if (speakerAddForm) {
+  speakerAddForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    addSpeakerPreset(speakerNewColorInput?.value || "");
+  });
+}
+
+if (speakerResetBtn) {
+  speakerResetBtn.addEventListener("click", () => {
+    applySpeakerColor(null);
+  });
+}
+
+if (readingSeparatorBtn && annotationReadingInput) {
+  readingSeparatorBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    const field = annotationReadingInput;
+    const separator = "・";
+    const start = field.selectionStart ?? field.value.length;
+    const end = field.selectionEnd ?? field.value.length;
+    const before = field.value.slice(0, start);
+    const after = field.value.slice(end);
+    field.value = `${before}${separator}${after}`;
+    const nextPos = start + separator.length;
+    field.setSelectionRange(nextPos, nextPos);
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    field.focus();
+  });
+}
+
+if (annotationReadingInput) {
+  annotationReadingInput.addEventListener("input", () => {
+    const raw = annotationReadingInput.value || "";
+    if (!raw.includes("・")) {
+      delete annotationReadingInput.dataset.tokens;
+      return;
+    }
+    const tokens = raw.split("・").filter((token) => token.length);
+    if (tokens.length) {
+      annotationReadingInput.dataset.tokens = JSON.stringify(tokens);
+    } else {
+      delete annotationReadingInput.dataset.tokens;
+    }
   });
 }
 
@@ -2810,18 +3351,7 @@ function triggerAutosave() {
 }
 
 if (editorEl) {
-  editorEl.addEventListener("input", () => {
-    if (!shelf || !book) return;
-
-    clearUndoActions();
-    keepCaretBreathingRoom();
-    ensureTopLevelEntries();
-    clearRangeSelectionUI();
-
-    triggerAutosave();
-  });
-
-  // Only show block boundaries when selecting a bigger chunk
+  // Selection helpers
   const selectionTouchesEditor = (range) => {
     if (!range) return false;
     return (
@@ -2831,6 +3361,93 @@ if (editorEl) {
       editorEl.contains(range.commonAncestorContainer)
     );
   };
+
+  const handleClipboardCopyCut = (event) => {
+    const sel = document.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (!selectionTouchesEditor(range)) return;
+
+    const clipboard = event.clipboardData || window.clipboardData;
+    if (!clipboard) return;
+
+    const plainText = selectionToPlainText(sel);
+    const frag = range.cloneContents();
+    const tmp = document.createElement("div");
+    tmp.appendChild(frag);
+    const html = tmp.innerHTML || plainText || "";
+    const payload = serializeEntriesForClipboard(range);
+
+    event.preventDefault();
+    clipboard.setData("text/plain", plainText);
+    clipboard.setData("text/html", html);
+    if (payload.length) {
+      clipboard.setData(SHIORI_CLIPBOARD_MIME, JSON.stringify(payload));
+    }
+
+    if (event.type === "cut") {
+      range.deleteContents();
+      ensureTopLevelEntries();
+      triggerAutosave();
+    }
+  };
+
+  const handleEditorPaste = (event) => {
+    const clipboard = event.clipboardData || window.clipboardData;
+    if (!clipboard) return;
+    const raw = clipboard.getData(SHIORI_CLIPBOARD_MIME);
+    if (raw) {
+      try {
+        const payload = JSON.parse(raw);
+        if (insertEntriesFromClipboardPayload(payload)) {
+          event.preventDefault();
+          return;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    event.preventDefault();
+    const text = clipboard.getData("text/plain");
+    document.execCommand("insertText", false, text);
+  };
+
+  editorEl.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const bar = target.closest(".entry-speaker-bar");
+    if (!bar) return;
+    event.preventDefault();
+    const entry = bar.closest(".entry");
+    if (!entry) return;
+    ensureSpeakerBarForEntry(entry);
+    openSpeakerPopoverForEntry(entry, bar);
+  });
+
+  editorEl.addEventListener("copy", handleClipboardCopyCut);
+  editorEl.addEventListener("cut", handleClipboardCopyCut);
+  editorEl.addEventListener("paste", handleEditorPaste);
+  editorEl.addEventListener("pointerover", handleHighlightPointerOver);
+  editorEl.addEventListener("pointerout", handleHighlightPointerOut);
+
+  editorEl.addEventListener("input", () => {
+    if (!shelf || !book) return;
+
+    clearUndoActions();
+    keepCaretBreathingRoom();
+    ensureTopLevelEntries();
+    clearRangeSelectionUI();
+    const caretEntry = nearestEntry(
+      document.getSelection()?.anchorNode || document.activeElement
+    );
+    if (caretEntry) {
+      const inner = caretEntry.querySelector(".entry-inner");
+      if (inner) ensureEntryHasVisiblePlaceholder(inner);
+    }
+
+    triggerAutosave();
+  });
 
   const handleSelectionTracking = () => {
     const sel = document.getSelection();
@@ -2864,6 +3481,11 @@ if (editorEl) {
   // Enter = new block (prevents “one giant block” merging)
   editorEl.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
+
+    if (e.shiftKey) {
+      return;
+    }
+
     // Ignore IME composition confirmations so Japanese/Korean/Chinese input can finish normally.
     if (e.isComposing || e.keyCode === 229) return;
 
@@ -2882,7 +3504,6 @@ if (editorEl) {
     if (moveCaretOutOfHighlight({ requireCollapsed: false })) {
       if (!sel || sel.rangeCount === 0) return;
     }
-
     let range = sel.getRangeAt(0);
 
     // Extract everything AFTER caret into a new entry
@@ -2924,24 +3545,11 @@ if (editorEl) {
     refreshEntryTypeClasses();
 
     // caret to start of new entry
-    const caretRange = document.createRange();
-    caretRange.selectNodeContents(newInner);
-    caretRange.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(caretRange);
+    setCaretInside(newInner);
 
     keepCaretBreathingRoom();
     clearRangeSelectionUI();
     hideAnnotateButton();
-  });
-
-  // Plain text paste
-  editorEl.addEventListener("paste", (e) => {
-    e.preventDefault();
-    const text = (e.clipboardData || window.clipboardData).getData(
-      "text/plain"
-    );
-    document.execCommand("insertText", false, text);
   });
 
   editorEl.addEventListener("blur", () => {
@@ -3012,3 +3620,5 @@ if (annotationForm) {
     saveAnnotationFromForm();
   });
 }
+
+renderSpeakerPresets();
